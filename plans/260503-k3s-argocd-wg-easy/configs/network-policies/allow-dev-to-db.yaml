@@ -1,0 +1,18 @@
+# Cho phép pod trong namespace "dev" kết nối đến DB có label env=dev trong namespace "data"
+# Ngăn dev pod truy cập DB của uat (env=uat)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dev-namespace
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      env: dev        # chỉ áp dụng cho postgres-dev, redis-dev
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dev

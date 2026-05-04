@@ -1,0 +1,22 @@
+# ArgoCD Application cho môi trường DEV
+# selfHeal=false: developer có thể kubectl apply trực tiếp để test
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dev-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_ORG/infra-gitops.git
+    targetRevision: main
+    path: environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false     # DEV: cho phép test manual kubectl apply
+    syncOptions:
+      - CreateNamespace=true

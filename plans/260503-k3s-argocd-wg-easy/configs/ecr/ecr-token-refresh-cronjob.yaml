@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecr-token-refresh
+  namespace: kube-system
+spec:
+  schedule: "0 */6 * * *"       # Mỗi 6 giờ — ECR token hết hạn sau 12h
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ecr-token-refresh
+          restartPolicy: OnFailure
+          containers:
+            - name: refresh
+              image: amazon/aws-cli:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "Installing kubectl..."
+                  curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  chmod +x kubectl && mv kubectl /usr/local/bin/
+
+                  echo "Getting ECR token..."
+                  TOKEN=$(aws ecr get-login-password --region $AWS_DEFAULT_REGION)
+
+                  echo "Refreshing ecr-secret in namespaces..."
+                  for NS in dev uat public; do
+                    kubectl create secret docker-registry ecr-secret \
+                      --namespace $NS \
+                      --docker-server=$ECR_REGISTRY \
+                      --docker-username=AWS \
+                      --docker-password=$TOKEN \
+                      --dry-run=client -o yaml | kubectl apply -f -
+                    echo "  ✓ $NS"
+                  done
+
+                  echo "Done. Token refreshed at $(date)."
+              envFrom:
+                - secretRef:
+                    name: aws-ecr-credentials  # tạo ở bước 3.1

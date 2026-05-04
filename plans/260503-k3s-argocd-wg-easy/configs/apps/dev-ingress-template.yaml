@@ -1,0 +1,28 @@
+# Template Ingress cho DEV app
+# Copy và sửa: APP_NAME, SUBDOMAIN
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dev-APP_NAME          # ví dụ: dev-web, dev-api
+  namespace: dev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: dev-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - SUBDOMAIN.company.com     # ví dụ: dev-app.company.com
+      secretName: dev-APP_NAME-tls
+  rules:
+    - host: SUBDOMAIN.company.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: APP_NAME      # tên service trong namespace dev
+                port:
+                  number: 80

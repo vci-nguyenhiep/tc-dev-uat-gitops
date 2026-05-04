@@ -1,0 +1,48 @@
+services:
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:14
+    container_name: wg-easy
+    restart: unless-stopped
+    environment:
+      # Domain hoặc IP public của server
+      - WG_HOST=vpn.company.com
+
+      # Port WireGuard (UDP)
+      - WG_PORT=51820
+
+      # Template IP cho VPN clients
+      - WG_DEFAULT_ADDRESS=10.8.0.x
+
+      # DNS cho VPN clients
+      - WG_DEFAULT_DNS=1.1.1.1,8.8.8.8
+
+      # MTU (để mặc định hoặc điều chỉnh nếu có vấn đề)
+      - WG_MTU=1420
+
+      # Password hash (bcrypt) — KHÔNG dùng plain text PASSWORD
+      # Sinh hash: htpasswd -bnBC 10 "" yourpassword | tr -d ':\n'
+      - PASSWORD_HASH=$$2y$$10$$REPLACE_WITH_YOUR_BCRYPT_HASH
+
+      # Port Web UI (chỉ dùng nội bộ, không expose ra Internet)
+      - PORT=51821
+
+    volumes:
+      - ./wireguard-data:/etc/wireguard
+
+    ports:
+      - "51820:51820/udp"
+      # Web UI chỉ bind localhost — không expose công khai
+      - "127.0.0.1:51821:51821/tcp"
+
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+    # Đảm bảo restart khi server reboot
+    deploy:
+      restart_policy:
+        condition: always

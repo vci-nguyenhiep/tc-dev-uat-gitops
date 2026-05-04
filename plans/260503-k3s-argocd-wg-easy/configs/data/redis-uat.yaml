@@ -1,0 +1,53 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-uat
+  namespace: data
+  labels:
+    app: redis-uat
+    env: uat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-uat
+  template:
+    metadata:
+      labels:
+        app: redis-uat
+        env: uat
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command: ["redis-server", "--requirepass", "CHANGE_ME_UAT_REDIS_PASSWORD"]
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "-a", "CHANGE_ME_UAT_REDIS_PASSWORD", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-uat
+  namespace: data
+  labels:
+    env: uat
+spec:
+  selector:
+    app: redis-uat
+  ports:
+    - port: 6379
+      targetPort: 6379

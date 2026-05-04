@@ -1,0 +1,26 @@
+# ArgoCD Application — deploy cert-manager qua Helm
+# Apply sau khi ArgoCD đã chạy: kubectl apply -f cert-manager-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.14.4
+    helm:
+      parameters:
+        - name: crds.enabled
+          value: "true"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

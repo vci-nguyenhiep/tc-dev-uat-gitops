@@ -1,0 +1,119 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wms
+  namespace: uat
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1   # tối đa 1 pod down khi deploy
+      maxSurge: 1         # tối đa 1 pod extra khi deploy
+  selector:
+    matchLabels:
+      app: wms
+      env: uat
+  template:
+    metadata:
+      labels:
+        app: wms
+        env: uat
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      containers:
+        - name: wms
+          image: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/wms:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: ENVIRONMENT
+              value: uat
+            - name: DB_HOST
+              value: postgres-uat.data.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: uatdb
+            - name: REDIS_HOST
+              value: redis-uat.data.svc.cluster.local
+          envFrom:
+            - secretRef:
+                name: app-uat-secret
+          # ASP.NET Core health check endpoints (cần enable trong app)
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 80
+            initialDelaySeconds: 15   # .NET startup chậm hơn Node/Go
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wms
+  namespace: uat
+spec:
+  selector:
+    app: wms
+    env: uat
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wms
+  namespace: uat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: uat-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - uat-wms.company.com
+      secretName: uat-wms-tls
+  rules:
+    - host: uat-wms.company.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wms
+                port:
+                  number: 80
+
+---
+# Đảm bảo luôn có ít nhất 1 pod running khi node maintenance / rolling update
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wms
+  namespace: uat
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: wms
+      env: uat

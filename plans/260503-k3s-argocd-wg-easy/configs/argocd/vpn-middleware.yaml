@@ -1,0 +1,11 @@
+# Middleware VPN-only dùng cho ArgoCD namespace
+# Áp dụng tương tự cho các namespace khác cần bảo vệ (dev, uat, monitoring, tools)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vpn-only
+  namespace: argocd
+spec:
+  ipAllowList:
+    sourceRange:
+      - 10.8.0.0/24

@@ -1,0 +1,97 @@
+---
+# Secret cho PostgreSQL DEV
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-dev-secret
+  namespace: data
+type: Opaque
+stringData:
+  POSTGRES_DB: devdb
+  POSTGRES_USER: devuser
+  POSTGRES_PASSWORD: CHANGE_ME_DEV_PASSWORD   # đổi password thực
+
+---
+# PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-dev-pvc
+  namespace: data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-dev
+  namespace: data
+  labels:
+    app: postgres-dev
+    env: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-dev
+  template:
+    metadata:
+      labels:
+        app: postgres-dev
+        env: dev
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-dev-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "devuser", "-d", "devdb"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "devuser", "-d", "devdb"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-dev-pvc
+
+---
+# Service (chỉ accessible trong cluster)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-dev
+  namespace: data
+  labels:
+    env: dev
+spec:
+  selector:
+    app: postgres-dev
+  ports:
+    - port: 5432
+      targetPort: 5432

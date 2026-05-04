@@ -1,0 +1,70 @@
+# Tất cả namespace trong cluster — quản lý bởi ArgoCD
+# Label "kubernetes.io/metadata.name" được Kubernetes tự thêm (v1.21+)
+# Label "env" dùng cho NetworkPolicy namespaceSelector
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    kubernetes.io/metadata.name: dev
+    env: dev
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uat
+  labels:
+    kubernetes.io/metadata.name: uat
+    env: uat
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: public
+  labels:
+    kubernetes.io/metadata.name: public
+    env: public
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data
+  labels:
+    kubernetes.io/metadata.name: data
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+  labels:
+    kubernetes.io/metadata.name: tools
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    kubernetes.io/metadata.name: monitoring
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    kubernetes.io/metadata.name: argocd
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    kubernetes.io/metadata.name: cert-manager

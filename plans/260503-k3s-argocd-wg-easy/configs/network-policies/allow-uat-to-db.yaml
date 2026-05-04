@@ -1,0 +1,17 @@
+# Cho phép pod trong namespace "uat" kết nối đến DB có label env=uat trong namespace "data"
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-uat-namespace
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      env: uat        # chỉ áp dụng cho postgres-uat, redis-uat
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uat

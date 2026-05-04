@@ -1,0 +1,11 @@
+# Chặn toàn bộ ingress traffic vào namespace dev mặc định
+# Chỉ cho phép traffic từ Traefik (qua VPN middleware) và traffic nội bộ
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: dev
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

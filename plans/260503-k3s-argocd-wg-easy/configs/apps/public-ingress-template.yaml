@@ -1,0 +1,26 @@
+# Template Ingress cho Public app (không cần VPN middleware)
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-APP_NAME
+  namespace: public
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - SUBDOMAIN.company.com     # ví dụ: app.company.com
+      secretName: public-APP_NAME-tls
+  rules:
+    - host: SUBDOMAIN.company.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: APP_NAME
+                port:
+                  number: 80

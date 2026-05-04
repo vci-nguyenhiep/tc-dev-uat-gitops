@@ -1,0 +1,3 @@
+interface:
+  display_name: "SVG To React"
+  short_description: "Convert SVG files or markup into React icon components"

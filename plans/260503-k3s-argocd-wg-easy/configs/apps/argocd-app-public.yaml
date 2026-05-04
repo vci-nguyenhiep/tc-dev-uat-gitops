@@ -1,0 +1,21 @@
+# ArgoCD Application cho môi trường Public
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: public-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_ORG/infra-gitops.git
+    targetRevision: main
+    path: environments/public
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: public
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
