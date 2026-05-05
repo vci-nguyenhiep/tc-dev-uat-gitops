@@ -75,6 +75,8 @@ Web UI của wg-easy chỉ bind `127.0.0.1:51821` trên server. Cần SSH tunnel
 Windows 10/11 có sẵn OpenSSH:
 ```powershell
 ssh -L 51821:127.0.0.1:51821 USER@SERVER_PUBLIC_IP
+
+ssh -L 51821:127.0.0.1:51821 USER@SERVER_DOMAIN
 ```
 
 Nếu không có OpenSSH, cài qua Settings → Apps → Optional Features → OpenSSH Client.
@@ -170,12 +172,39 @@ sudo wg-quick down wg0
 
 ## [SERVER] Bước 7: Khóa SSH public sau khi VPN hoạt động
 
-Sau khi test SSH qua VPN thành công (`ssh USER@10.8.0.1`):
+> ⚠️ Chỉ chạy sau khi đã test thành công `ssh USER@10.8.0.1` qua VPN — nếu không sẽ bị khoá ngoài server.
+
+Xem rule SSH hiện tại đang dùng tên gì:
 
 ```bash
-sudo ufw delete allow 22/tcp
+sudo ufw status numbered
+```
+
+Tuỳ rule là `22` hay `22/tcp` mà chọn cách xoá tương ứng.
+
+**Cách an toàn nhất — xoá theo số thứ tự** (xoá từ số to → số nhỏ để tránh index lệch):
+
+```bash
+# Tìm số của rule "22" (v4) và "22 (v6)" trong output `ufw status numbered` ở trên
+# Ví dụ rule v4 là [1], v6 là [6]:
+sudo ufw delete 6
+sudo ufw delete 1
+
 sudo ufw allow from 10.8.0.0/24 to any port 22 proto tcp
-sudo ufw status
+sudo ufw status verbose
+```
+
+**Cách dùng rule string** (phải khớp chính xác cách rule được tạo):
+
+```bash
+# Nếu rule hiển thị là "22" (không có /tcp):
+sudo ufw delete allow 22
+
+# Nếu rule hiển thị là "22/tcp":
+sudo ufw delete allow 22/tcp
+
+sudo ufw allow from 10.8.0.0/24 to any port 22 proto tcp
+sudo ufw status verbose
 ```
 
 ---
