@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tc-wms-api
+  namespace: uat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: uat-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - uat-tc-wms-api.company.com
+      secretName: uat-tc-wms-api-tls
+  rules:
+    - host: uat-tc-wms-api.company.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tc-wms-api
+                port:
+                  number: 80

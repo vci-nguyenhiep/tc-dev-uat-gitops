@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotenberg
+  namespace: uat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gotenberg
+      env: uat
+  template:
+    metadata:
+      labels:
+        app: gotenberg
+        env: uat
+    spec:
+      containers:
+        - name: gotenberg
+          image: gotenberg/gotenberg:8
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

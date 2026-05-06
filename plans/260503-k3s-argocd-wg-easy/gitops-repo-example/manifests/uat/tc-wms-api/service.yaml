@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tc-wms-api
+  namespace: uat
+spec:
+  selector:
+    app: tc-wms-api
+    env: uat
+  ports:
+    - port: 80
+      targetPort: 80

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uat-tc-notification-api
+  namespace: argocd
+spec:
+  project: tc-hrm-project
+  source:
+    repoURL: https://github.com/YOUR_ORG/infra-gitops.git
+    targetRevision: main
+    path: manifests/uat/tc-notification-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: uat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

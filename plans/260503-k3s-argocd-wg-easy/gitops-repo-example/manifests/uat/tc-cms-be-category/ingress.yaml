@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tc-cms-be-category
+  namespace: uat
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: uat-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - uat-tc-cms-be-category.company.com
+      secretName: uat-tc-cms-be-category-tls
+  rules:
+    - host: uat-tc-cms-be-category.company.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tc-cms-be-category
+                port:
+                  number: 80

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tc-notification-api
+  namespace: uat
+spec:
+  selector:
+    app: tc-notification-api
+    env: uat
+  ports:
+    - port: 80
+      targetPort: 80

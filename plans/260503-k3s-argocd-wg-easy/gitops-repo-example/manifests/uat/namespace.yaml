@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uat
+  labels:
+    kubernetes.io/metadata.name: uat
+    env: uat

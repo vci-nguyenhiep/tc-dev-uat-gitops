@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tc-cms-be-category
+  namespace: uat
+spec:
+  selector:
+    app: tc-cms-be-category
+    env: uat
+  ports:
+    - port: 80
+      targetPort: 80

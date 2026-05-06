@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tc-ims-be
+  namespace: uat
+spec:
+  selector:
+    app: tc-ims-be
+    env: uat
+  ports:
+    - port: 80
+      targetPort: 80

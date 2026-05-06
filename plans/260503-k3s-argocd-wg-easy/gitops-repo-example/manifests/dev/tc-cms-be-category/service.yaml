@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tc-cms-be-category
+  namespace: dev
+spec:
+  selector:
+    app: tc-cms-be-category
+    env: dev
+  ports:
+    - port: 80
+      targetPort: 80
