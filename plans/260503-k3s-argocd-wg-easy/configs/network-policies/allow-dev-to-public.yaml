@@ -1,0 +1,21 @@
+# Cho phép pods trong namespace dev và uat gọi vào pods trong namespace public
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-namespaces
+  namespace: public
+spec:
+  podSelector: {}       # áp dụng cho tất cả pods trong public
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchExpressions:
+        - key: env
+          operator: In
+          values: [dev, uat]
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system   # Traefik

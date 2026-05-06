@@ -19,6 +19,7 @@
 | 07 | App deployment via GitOps | 20 min | [ ] |
 | 08 | NetworkPolicy | 10 min | [ ] |
 | 09 | Monitoring cơ bản | 15 min | [ ] |
+| 10 | Expose Service qua LoadBalancer (không qua Ingress) | 10 min | [ ] |
 
 **Tổng**: ~2.5 giờ cho lần đầu
 
@@ -32,6 +33,8 @@
                                           06 Data + 07 Apps + 08 NetworkPolicy
                                                        ↓
                                               09 Monitoring
+                                                   ↓
+                                          10 LoadBalancer (optional)
 ```
 
 ---

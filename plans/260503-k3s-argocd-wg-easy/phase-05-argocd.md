@@ -3,17 +3,34 @@
 ## Bước 1: Cài ArgoCD
 
 ```bash
+cài đặt Helm (nếu chưa có):
+curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+```
+
+```bash
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 
 helm install argocd argo/argo-cd \
   --namespace argocd \
-  --set server.insecure=true   # Traefik xử lý TLS, ArgoCD dùng HTTP nội bộ
+  --set configs.params."server\.insecure"=true   # Traefik xử lý TLS, ArgoCD dùng HTTP nội bộ
 ```
 
 Kiểm tra:
 
 ```bash
+Nếu xảy ra lỗi permission denied khi Helm tạo service account, có thể do KUBECONFIG chưa set đúng hoặc không có quyền admin trên cluster.
+source ~/.bashrc
+echo $KUBECONFIG
+
+Nếu KUBECONFIG vẫn rỗng thì set trực tiếp trong session hiện tại:
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+helm install argocd argo/argo-cd \
+  --namespace argocd \
+  --set server.insecure=true
+
+rồi kiểm tra lại:
 kubectl get pods -n argocd
 # argocd-server-xxx                Running
 # argocd-repo-server-xxx           Running
@@ -23,7 +40,13 @@ kubectl get pods -n argocd
 ```
 
 ## Bước 2: Lấy admin password
+Không thể truy cập từ bên ngoài mà phải port-forward để lấy password:
 
+```bash
+kubectl port-forward service/argocd-server -n argocd 8080:80
+```
+
+Lấy mật khẩu admin:
 ```bash
 kubectl get secret argocd-initial-admin-secret \
   -n argocd \
@@ -41,6 +64,8 @@ kubectl apply -f configs/argocd/argocd-ingress.yaml
 ```
 
 ## Bước 4: Truy cập ArgoCD UI
+
+### Chú ý: Phải quay về phase 04 để cài cert-manager và Traefik trước, vì ArgoCD Ingress phụ thuộc vào Traefik Middleware đã tạo ở phase 04.
 
 Bật VPN, mở trình duyệt: `https://argocd.company.com`
 

@@ -169,3 +169,24 @@ kubectl apply -f configs/network-policies/allow-uat-to-db.yaml
 |---|---|
 | `allow-dev-namespace` | Pods `env=dev` nhận kết nối từ namespace `dev` |
 | `allow-uat-namespace` | Pods `env=uat` nhận kết nối từ namespace `uat` |
+
+### Namespace `public`
+
+| Policy | Cho phép |
+|---|---|
+| `default-deny-ingress` | Chặn tất cả ingress mặc định |
+| `allow-app-namespaces` | Pods trong `dev` và `uat` gọi vào được |
+| _(Traefik đã được allow qua `kube-system`)_ | Internet → public qua Ingress |
+
+Apply:
+
+```bash
+kubectl apply -f configs/network-policies/default-deny-public.yaml
+kubectl apply -f configs/network-policies/allow-dev-to-public.yaml
+```
+
+Từ dev/uat pod gọi service trong `public`:
+
+```bash
+curl http://<service-name>.public.svc.cluster.local:<port>
+```

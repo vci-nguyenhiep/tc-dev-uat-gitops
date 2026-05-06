@@ -29,6 +29,23 @@ source ~/.bashrc
 
 ## [SERVER] Bước 3: Tạo namespace
 
+> Nếu gặp lỗi `permission denied` khi chạy `kubectl`, fix trước bằng cách thêm flag vào k3s service:
+>
+> ```bash
+> sudo nano /etc/systemd/system/k3s.service
+> # Thêm --write-kubeconfig-mode 644 vào dòng ExecStart
+> 
+> sudo systemctl daemon-reload
+> sudo systemctl restart k3s
+> ```
+>
+> Hoặc fix nhanh (không persist qua restart):
+> ```bash
+> mkdir -p ~/.kube
+> sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+> sudo chown $(id -u):$(id -g) ~/.kube/config
+> ```
+
 Dùng file declarative thay vì `kubectl create` — có label sẵn cho NetworkPolicy:
 
 ```bash
@@ -154,6 +171,54 @@ Set permanent (PowerShell):
 ```powershell
 [System.Environment]::SetEnvironmentVariable("KUBECONFIG", "$HOME\.kube\company-k3s.yaml", "User")
 # Restart terminal để có hiệu lực
+```
+
+> **Nếu gặp lỗi x509 certificate `not 10.8.0.1`** — k3s chưa có VPN IP trong TLS SAN, fix trên server:
+>
+> **Bước 1 — Thêm `--tls-san` vào k3s service:**
+> ```bash
+> sudo nano /etc/systemd/system/k3s.service
+> # Thêm vào dòng ExecStart:
+> #   --tls-san 10.8.0.1
+>ExecStart=/usr/local/bin/k3s server \
+>    --write-kubeconfig-mode 644 \
+>    --tls-san 10.8.0.1
+
+> ```
+>
+> **Bước 2 — Xoá dynamic cert cũ để k3s tự sinh lại:**
+> ```bash
+> sudo rm /var/lib/rancher/k3s/server/tls/server-ca.crt
+> sudo rm /var/lib/rancher/k3s/server/tls/server-ca.key
+> sudo rm -rf /var/lib/rancher/k3s/server/tls/dynamic-cert.json
+> ```
+>
+> **Bước 3 — Reload và restart:**
+> ```bash
+> sudo systemctl daemon-reload
+> sudo systemctl restart k3s
+> # Đợi ~30s cho k3s generate cert mới
+> kubectl get nodes
+> ```
+>
+> **Bước 4 — Cập nhật kubeconfig trên server rồi copy lại về máy local:**
+> ```bash
+>sudo cat /etc/rancher/k3s/k3s.yaml
+> ```
+
+# Sửa lại file kubeconfig
+```powershell
+notepad "$HOME\.kube\company-k3s.yaml"
+# Paste nội dung kubeconfig vào, Save
+```
+
+Sửa dòng `server` trong file:
+```yaml
+# Tìm:
+server: https://127.0.0.1:6443
+
+# Sửa thành:
+server: https://10.8.0.1:6443
 ```
 
 ---

@@ -1,5 +1,6 @@
 # Middleware VPN-only dùng cho ArgoCD namespace
-# Áp dụng tương tự cho các namespace khác cần bảo vệ (dev, uat, monitoring, tools)
+# 10.8.0.0/24  : VPN client trực tiếp
+# 10.42.0.0/16 : Pod CIDR — klipper-lb MASQUERADE traffic VPN thành node CNI IP
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -9,3 +10,4 @@ spec:
   ipAllowList:
     sourceRange:
       - 10.8.0.0/24
+      - 10.42.0.0/16

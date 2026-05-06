@@ -1,0 +1,11 @@
+# Chặn tất cả ingress vào namespace public theo mặc định
+# Sau đó mở từng nguồn cần thiết qua policy riêng
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: public
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
