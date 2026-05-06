@@ -1,17 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: tc-project
+  name: tc-hrm-project
   namespace: argocd
 spec:
   description: TC Platform project
   sourceRepos:
     - https://github.com/YOUR_ORG/infra-gitops.git
-  destinations:
-    - namespace: dev
-      server: https://kubernetes.default.svc
-    - namespace: uat
-      server: https://kubernetes.default.svc
-  clusterResourceWhitelist:
-    - group: '*'
-      kind: '*'
+z

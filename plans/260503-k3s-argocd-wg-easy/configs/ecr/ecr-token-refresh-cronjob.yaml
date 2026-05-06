@@ -26,13 +26,13 @@ spec:
 
                   # Refresh secret trong từng namespace
                   for NS in dev uat public; do
-                    kubectl create secret docker-registry ecr-secret \
+                    kubectl create secret docker-registry dockerhub-secret \
                       --namespace $NS \
                       --docker-server=$ECR_REGISTRY \
                       --docker-username=AWS \
                       --docker-password=$TOKEN \
                       --dry-run=client -o yaml | kubectl apply -f -
-                    echo "Refreshed ecr-secret in namespace: $NS"
+                    echo "Refreshed dockerhub-secret in namespace: $NS"
                   done
               envFrom:
                 - secretRef:

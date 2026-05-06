@@ -14,7 +14,8 @@ fi
 
 AWS_ACCESS_KEY_ID="YOUR_KEY"
 AWS_SECRET_ACCESS_KEY="YOUR_SECRET"
-ECR_REGISTRY="123456789012.dkr.ecr.ap-southeast-1.amazonaws.com"
+ECR_REGISTRY="370404697988.dkr.ecr.ap-southeast-1.amazonaws.com"
+SECRET_NAME="dockerhub-secret"
 NAMESPACES=("dev" "uat" "public")
 
 ECR_TOKEN=$(AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
@@ -22,12 +23,12 @@ ECR_TOKEN=$(AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
   aws ecr get-login-password --region ap-southeast-1)
 
 for NS in "${NAMESPACES[@]}"; do
-  kubectl create secret docker-registry ecr-secret \
+  kubectl create secret docker-registry "$SECRET_NAME" \
     --namespace "$NS" \
     --docker-server="$ECR_REGISTRY" \
     --docker-username=AWS \
     --docker-password="$ECR_TOKEN" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-  echo "Created ecr-secret in namespace: $NS"
+  echo "Created $SECRET_NAME in namespace: $NS"
 done

@@ -201,7 +201,7 @@ spec:
 
                   # Refresh secret trong từng namespace
                   for NS in dev uat public; do
-                    kubectl create secret docker-registry ecr-secret \
+                    kubectl create secret docker-registry dockerhub-secret \
                       --namespace $NS \
                       --docker-server=$ECR_REGISTRY \
                       --docker-username=AWS \
@@ -319,6 +319,10 @@ for F in gitops-repo-example/argocd/*.yaml; do
   sed 's/YOUR_ORG/your-github-org/g' $F | kubectl apply -f -
 done
 ```
+```bash
+# Nêu suủ tay từ truoớ
+kubectl apply -R -f tc-gitops/argocd/
+```
 
 Sau khi apply, ArgoCD tự sync các app từ Git. Kiểm tra:
 
@@ -335,18 +339,6 @@ kubectl get applications -n argocd
 # uat-hrm     Synced        Healthy
 # uat-ims     Synced        Healthy
 # uat-cms     Synced        Healthy
-```
-
----
-
-## Bước 6: Tạo Ingress cho apps
-
-```bash
-# Ví dụ cho dev-web
-cp configs/apps/dev-ingress-template.yaml /tmp/dev-web-ingress.yaml
-sed -i 's/APP_NAME/web/g' /tmp/dev-web-ingress.yaml
-sed -i 's/SUBDOMAIN/dev-app/g' /tmp/dev-web-ingress.yaml
-kubectl apply -f /tmp/dev-web-ingress.yaml
 ```
 
 ---
