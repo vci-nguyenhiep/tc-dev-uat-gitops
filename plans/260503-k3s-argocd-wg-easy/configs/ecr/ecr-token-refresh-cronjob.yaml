@@ -4,16 +4,16 @@ metadata:
   name: ecr-token-refresh
   namespace: kube-system
 spec:
-  schedule: "0 */6 * * *"       # Mỗi 6 giờ — ECR token hết hạn sau 12h
-  concurrencyPolicy: Forbid
+  schedule: "0 */6 * * *"   # Mỗi 6 giờ — token hết hạn sau 12h
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       template:
         spec:
           serviceAccountName: ecr-token-refresh
           restartPolicy: OnFailure
+          hostNetwork: true
           containers:
             - name: refresh
               image: amazon/aws-cli:latest
@@ -21,16 +21,10 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  set -e
-
-                  echo "Installing kubectl..."
-                  curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                  chmod +x kubectl && mv kubectl /usr/local/bin/
-
-                  echo "Getting ECR token..."
+                  # Lấy ECR token mới
                   TOKEN=$(aws ecr get-login-password --region $AWS_DEFAULT_REGION)
 
-                  echo "Refreshing ecr-secret in namespaces..."
+                  # Refresh secret trong từng namespace
                   for NS in dev uat public; do
                     kubectl create secret docker-registry ecr-secret \
                       --namespace $NS \
@@ -38,10 +32,16 @@ spec:
                       --docker-username=AWS \
                       --docker-password=$TOKEN \
                       --dry-run=client -o yaml | kubectl apply -f -
-                    echo "  ✓ $NS"
+                    echo "Refreshed ecr-secret in namespace: $NS"
                   done
-
-                  echo "Done. Token refreshed at $(date)."
               envFrom:
                 - secretRef:
-                    name: aws-ecr-credentials  # tạo ở bước 3.1
+                    name: aws-ecr-credentials
+              volumeMounts:
+                - name: kubectl
+                  mountPath: /usr/local/bin/kubectl
+          volumes:
+            - name: kubectl
+              hostPath:
+                path: /usr/local/bin/kubectl
+                type: File

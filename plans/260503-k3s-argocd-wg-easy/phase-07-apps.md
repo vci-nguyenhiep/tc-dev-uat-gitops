@@ -127,6 +127,7 @@ for NS in dev uat public; do
     --docker-password=$ECR_TOKEN
 done
 ```
+Hoặc chạy file [plans\260503-k3s-argocd-wg-easy\configs\secrets\ecr-secret.sh] đã có sẵn script tạo secret — chỉ cần điền credentials thật vào file trước khi chạy.
 
 ### 3.3 Tạo RBAC cho CronJob refresh token
 
@@ -187,6 +188,7 @@ spec:
         spec:
           serviceAccountName: ecr-token-refresh
           restartPolicy: OnFailure
+          hostNetwork: true
           containers:
             - name: refresh
               image: amazon/aws-cli:latest
@@ -194,10 +196,6 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  # Cài kubectl
-                  curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                  chmod +x kubectl && mv kubectl /usr/local/bin/
-
                   # Lấy ECR token mới
                   TOKEN=$(aws ecr get-login-password --region $AWS_DEFAULT_REGION)
 
@@ -214,6 +212,14 @@ spec:
               envFrom:
                 - secretRef:
                     name: aws-ecr-credentials
+              volumeMounts:
+                - name: kubectl
+                  mountPath: /usr/local/bin/kubectl
+          volumes:
+            - name: kubectl
+              hostPath:
+                path: /usr/local/bin/kubectl
+                type: File
 ```
 
 ```bash
@@ -309,7 +315,7 @@ kubectl get secret app-uat-secret -n uat
 
 ```bash
 # Sửa YOUR_ORG thành GitHub org thực của bạn (1 lần duy nhất khi setup)
-for F in gitops-repo-example/argocd-apps/*.yaml; do
+for F in gitops-repo-example/argocd/*.yaml; do
   sed 's/YOUR_ORG/your-github-org/g' $F | kubectl apply -f -
 done
 ```
