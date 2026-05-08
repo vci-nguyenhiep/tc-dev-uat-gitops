@@ -15,13 +15,13 @@
 | 03 | k3s + kubectl + k9s local (Win/Mac/Linux) | 25 min | [ ] |
 | 04 | cert-manager + SSL | 20 min | [ ] |
 | 05 | ArgoCD + GitHub GitOps | 30 min | [ ] |
-| 06 | Data services (PostgreSQL + Redis) | 20 min | [ ] |
-| 07 | App deployment via GitOps | 20 min | [ ] |
+| 06 | HashiCorp Vault + Vault Secrets Operator (VSO) | 45 min | [ ] |
+| 07 | App deployment via GitOps + AWS ECR | 20 min | [ ] |
 | 08 | NetworkPolicy | 10 min | [ ] |
 | 09 | Monitoring cơ bản | 15 min | [ ] |
 | 10 | Expose Service qua LoadBalancer (không qua Ingress) | 10 min | [ ] |
 
-**Tổng**: ~2.5 giờ cho lần đầu
+**Tổng**: ~3 giờ cho lần đầu
 
 ---
 
@@ -30,7 +30,9 @@
 ```
 01 Server → 02 VPN → 03 k3s → 04 cert-manager → 05 ArgoCD
                                                        ↓
-                                          06 Data + 07 Apps + 08 NetworkPolicy
+                                              06 Vault + VSO
+                                                       ↓
+                                          07 Apps + 08 NetworkPolicy
                                                        ↓
                                               09 Monitoring
                                                    ↓
@@ -62,6 +64,21 @@ configs/
 │   ├── postgres-uat.yaml
 │   ├── redis-dev.yaml
 │   └── redis-uat.yaml
+├── vault/
+│   ├── vault-values.yaml
+│   ├── vso-values.yaml
+│   ├── vault-vpn-middleware.yaml
+│   ├── vault-ingress.yaml
+│   ├── argocd-vault-app.yaml
+│   ├── argocd-vso-app.yaml
+│   ├── vault-auth-data.yaml
+│   ├── vault-auth-dev.yaml
+│   ├── vault-auth-uat.yaml
+│   ├── vault-auth-kube-system.yaml
+│   ├── vault-static-secrets-data.yaml
+│   ├── vault-static-secrets-dev.yaml
+│   ├── vault-static-secrets-uat.yaml
+│   └── vault-static-secret-ecr.yaml
 ├── apps/
 │   ├── vpn-middleware-dev.yaml
 │   ├── vpn-middleware-uat.yaml
@@ -90,3 +107,9 @@ gitops-repo-example/   ← cấu trúc GitOps repo mẫu trên GitHub
 | `10.8.0.1` | IP VPN của server (mặc định wg-easy gán cho server) |
 | `YOUR_GITHUB_REPO` | URL GitOps repo trên GitHub |
 | `GITHUB_TOKEN` | GitHub Personal Access Token |
+| `CHANGE_ME_DEV_PG_PASS` | Postgres password cho môi trường dev |
+| `CHANGE_ME_UAT_PG_PASS` | Postgres password cho môi trường uat |
+| `CHANGE_ME_DEV_REDIS_PASS` | Redis password cho môi trường dev |
+| `CHANGE_ME_UAT_REDIS_PASS` | Redis password cho môi trường uat |
+| `CHANGE_ME_DEV_JWT` | JWT secret cho apps dev |
+| `CHANGE_ME_UAT_JWT` | JWT secret cho apps uat |

@@ -9,7 +9,7 @@
 
 ---
 
-## Bước 1: Apply default deny
+## Bước 1: Apply default deny  ( Đã có trong argocd )
 
 Chặn toàn bộ ingress mặc định, sau đó mở từng thứ cần thiết.
 
@@ -20,7 +20,7 @@ kubectl apply -f configs/network-policies/default-deny-uat.yaml
 
 ---
 
-## Bước 2: Allow pods cùng namespace giao tiếp
+## Bước 2: Allow pods cùng namespace giao tiếp ( Đã có trong argocd )
 
 **Quan trọng:** `default-deny-ingress` sẽ chặn cả traffic nội bộ trong namespace.
 Cần allow để admin có thể gọi wms, hrm gọi ims, v.v.
@@ -42,7 +42,7 @@ http://cms
 
 ---
 
-## Bước 3: Allow Traefik route traffic vào
+## Bước 3: Allow Traefik route traffic vào  ( Đã có trong argocd )
 
 Traefik chạy trong `kube-system` — cần được phép forward request vào pods.
 
@@ -53,7 +53,7 @@ kubectl apply -f configs/network-policies/allow-traefik-uat.yaml
 
 ---
 
-## Bước 4: Allow app truy cập DB đúng môi trường
+## Bước 4: Allow app truy cập DB đúng môi trường  ( Đã có trong argocd )
 
 ```bash
 kubectl apply -f configs/network-policies/allow-dev-to-db.yaml
@@ -62,7 +62,7 @@ kubectl apply -f configs/network-policies/allow-uat-to-db.yaml
 
 ---
 
-## Bước 5: Verify NetworkPolicy
+## Bước 5: Verify NetworkPolicy  ( Đã có trong argocd )
 
 ```bash
 kubectl get networkpolicy -n dev

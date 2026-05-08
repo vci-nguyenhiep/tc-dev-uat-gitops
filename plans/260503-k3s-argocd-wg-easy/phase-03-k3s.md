@@ -264,74 +264,8 @@ kubectl get nodes
 
 kubectl get namespaces
 ```
-
 ---
-
-## [LOCAL] Bước 6: Cài k9s trên máy local
-
-### Windows
-
-```powershell
-winget install k9s
-```
-
-Hoặc Chocolatey:
-```powershell
-choco install k9s
-```
-
-Chạy k9s (PowerShell — bật VPN trước):
-```powershell
-$env:KUBECONFIG = "$HOME\.kube\company-k3s.yaml"
-k9s
-```
-
-### macOS
-
-```bash
-brew install k9s
-```
-
-Chạy (bật VPN trước):
-```bash
-k9s
-```
-
-### Linux
-
-```bash
-# Tải binary mới nhất
-curl -sS https://webinstall.dev/k9s | bash
-# Hoặc:
-wget https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_amd64.tar.gz
-tar -xzf k9s_Linux_amd64.tar.gz
-sudo mv k9s /usr/local/bin/
-```
-
-Chạy (bật VPN trước):
-```bash
-k9s
-```
-
----
-
-### Phím tắt k9s hay dùng
-
-| Phím | Tác dụng |
-|---|---|
-| `:pod` | Xem tất cả pods |
-| `:deploy` | Xem deployments |
-| `:ns` | Chọn namespace |
-| `l` | Xem logs pod |
-| `s` | Shell vào pod |
-| `d` | Describe resource |
-| `ctrl+d` | Xoá resource |
-| `/` | Filter/tìm kiếm |
-| `?` | Help |
-
----
-
-## [SERVER] Bước 7: Kiểm tra Traefik
+## [SERVER] Bước 8: Kiểm tra Traefik
 
 ```bash
 kubectl get pods -n kube-system | grep traefik

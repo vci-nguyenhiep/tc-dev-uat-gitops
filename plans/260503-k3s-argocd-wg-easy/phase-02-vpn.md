@@ -101,7 +101,7 @@ ssh -L 51821:127.0.0.1:51821 USER@SERVER_PUBLIC_IP
 
 ---
 
-Sau khi SSH tunnel đang chạy, mở trình duyệt: `http://localhost:51821`
+Sau khi SSH tunnel đang chạy, mở trình duyệt: `http://localhost:51821` hoặc `http://10.8.0.1:51821/`
 
 1. Đăng nhập bằng password đã cấu hình
 2. Click **New Client** → đặt tên (ví dụ: `win-laptop`, `mac-work`)
