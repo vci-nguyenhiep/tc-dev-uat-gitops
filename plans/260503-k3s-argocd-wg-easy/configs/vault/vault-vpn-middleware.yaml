@@ -1,0 +1,13 @@
+# Middleware VPN-only dùng cho Vault namespace
+# 10.8.0.0/24  : VPN client trực tiếp
+# 10.42.0.0/16 : Pod CIDR — klipper-lb MASQUERADE traffic VPN thành node CNI IP
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vpn-only
+  namespace: vault
+spec:
+  ipAllowList:
+    sourceRange:
+      - 10.8.0.0/24
+      - 10.42.0.0/16

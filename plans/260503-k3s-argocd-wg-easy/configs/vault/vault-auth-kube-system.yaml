@@ -1,0 +1,13 @@
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: kube-system-auth
+  namespace: kube-system
+spec:
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: kube-system-role
+    serviceAccount: default
+    audiences:
+      - vault
