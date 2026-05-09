@@ -20,10 +20,7 @@ App pods (envFrom secretRef)
 ```
 secret/
 ├── data/
-│   ├── postgres-dev     → postgres-dev-secret (namespace: data)
-│   ├── postgres-uat     → postgres-uat-secret (namespace: data)
-│   ├── redis-dev        → redis-dev-secret    (namespace: data)
-│   └── redis-uat        → redis-uat-secret    (namespace: data)
+│   ├── redis       → redis-dev-secret    (namespace: data)
 ├── dev/
 │   └── app              → app-dev-secret      (namespace: dev)
 ├── uat/
@@ -181,18 +178,36 @@ path "secret/data/data/*" {
 }
 EOF'
 
-# Policy cho namespace dev (app secrets)
+# Policy cho namespace dev (app secrets + shared redis + elasticsearch)
 kubectl exec vault-0 -n vault -- /bin/sh -c '
 vault policy write dev-policy - <<EOF
 path "secret/data/dev/*" {
   capabilities = ["read"]
 }
+path "secret/metadata/dev/*" {
+  capabilities = ["read"]
+}
+path "secret/data/data/redis" {
+  capabilities = ["read"]
+}
+path "secret/data/monitoring/elasticsearch" {
+  capabilities = ["read"]
+}
 EOF'
 
-# Policy cho namespace uat (app secrets)
+# Policy cho namespace uat (app secrets + shared redis + elasticsearch)
 kubectl exec vault-0 -n vault -- /bin/sh -c '
 vault policy write uat-policy - <<EOF
 path "secret/data/uat/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/uat/*" {
+  capabilities = ["read"]
+}
+path "secret/data/data/redis" {
+  capabilities = ["read"]
+}
+path "secret/data/monitoring/elasticsearch" {
   capabilities = ["read"]
 }
 EOF'
@@ -204,6 +219,15 @@ path "secret/data/shared/*" {
   capabilities = ["read"]
 }
 EOF'
+
+# Policy cho monitoring 
+kubectl exec vault-0 -n vault -- /bin/sh -c '
+vault policy write monitoring-policy - <<EOF
+path "secret/data/monitoring/*" {
+  capabilities = ["read"]
+}
+EOF'
+
 ```
 
 ### 5.5 Tạo Kubernetes roles
@@ -240,6 +264,15 @@ kubectl exec vault-0 -n vault -- vault write auth/kubernetes/role/kube-system-ro
   policies="shared-policy" \
   audience="vault" \
   ttl="1h"
+
+# Role cho monitoring
+kubectl exec vault-0 -n vault -- vault write auth/kubernetes/role/monitoring-role \
+  bound_service_account_names="default" \
+  bound_service_account_namespaces="monitoring" \
+  policies="monitoring-policy" \
+  audience="vault" \
+  ttl="1h"
+
 ```
 
 ---
@@ -307,6 +340,10 @@ kubectl exec vault-0 -n vault -- vault kv put secret/uat/app \
   AWS_KEY="" \
   AWS_SECRETKEY="" \
   REDIS_CONNECTION=""
+
+kubectl exec vault-0 -n vault -- vault kv put secret/shared/aws-ecr \
+  AWS_KEY="" \
+  AWS_SECRETKEY=""
 ```
 
 Kiểm tra đã lưu đúng:
@@ -316,11 +353,20 @@ kubectl exec vault-0 -n vault -- vault kv get secret/data/redis
 kubectl exec vault-0 -n vault -- vault kv get secret/monitoring/elasticsearch
 kubectl exec vault-0 -n vault -- vault kv get secret/dev/app
 kubectl exec vault-0 -n vault -- vault kv get secret/uat/app
+kubectl exec vault-0 -n vault -- vault kv get secret/shared/aws-ecr
 ```
 
 ---
 
 ## Bước 7: Install Vault Secrets Operator (VSO)
+
+```
+Vault                    VaultStaticSecret (cầu nối)         K8s Secret
+─────────────────────    ───────────────────────────          ──────────────────
+secret/dev/app  ──────▶  mount: secret               ──────▶ name: app-dev-secret
+  DB_USER=admin          path: dev/app                        DB_USER=admin
+  DB_PASSWORD=xxx        destination.name: app-dev-secret     DB_PASSWORD=xxx
+```
 
 ```bash
 helm install vault-secrets-operator hashicorp/vault-secrets-operator \
@@ -340,32 +386,100 @@ kubectl get pods -n vault
 
 VSO cần `VaultAuth` (cách authenticate) và `VaultStaticSecret` (secret cần sync) trong từng namespace.
 
+# VaultAuth: Cấu hình auth method (Kubernetes Auth) cho từng namespace
+
+```bash
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: dev-auth
+  namespace: dev
+spec:
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: dev-role          # role đã config trong Vault
+    serviceAccount: default
+    audiences:
+      - vault
+```
+# VaultStaticSecret: Định nghĩa secret nào trong Vault sẽ sync về namespace nào dưới dạng k8s Secret
+
+```bash
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: app-dev-secret
+  namespace: dev
+spec:
+  vaultAuthRef: dev-auth    # trỏ tới VaultAuth ở trên
+  type: kv-v2
+  mount: secret             # KV mount trong Vault
+  path: dev/app             # path của secret
+  destination:
+    name: app-dev-secret    # tên K8s Secret sẽ được tạo
+    create: true
+  refreshAfter: 60s         # VSO tự re-sync mỗi 60s
+
+```
+### Apply
+
 ```bash
 # VaultAuth cho từng namespace
 kubectl apply -f configs/vault/vault-auth-data.yaml
 kubectl apply -f configs/vault/vault-auth-dev.yaml
 kubectl apply -f configs/vault/vault-auth-uat.yaml
 kubectl apply -f configs/vault/vault-auth-kube-system.yaml
+kubectl apply -f configs/vault/vault-auth-monitoring.yaml
 
 # VaultStaticSecret — sync từ Vault → k8s Secrets
 kubectl apply -f configs/vault/vault-static-secrets-data.yaml
 kubectl apply -f configs/vault/vault-static-secrets-dev.yaml
 kubectl apply -f configs/vault/vault-static-secrets-uat.yaml
 kubectl apply -f configs/vault/vault-static-secret-ecr.yaml
+kubectl apply -f configs/vault/vault-static-secret-elasticsearch.yaml
 ```
 
-Kiểm tra VSO đã sync:
+### Xóa
+
+```bash
+# Xóa VaultStaticSecret + VaultAuth (CRDs)
+kubectl delete -f configs/vault/vault-static-secrets-data.yaml
+kubectl delete -f configs/vault/vault-static-secrets-dev.yaml
+kubectl delete -f configs/vault/vault-static-secrets-uat.yaml
+kubectl delete -f configs/vault/vault-static-secret-ecr.yaml
+kubectl delete -f configs/vault/vault-static-secret-elasticsearch.yaml
+kubectl delete -f configs/vault/vault-auth-data.yaml
+kubectl delete -f configs/vault/vault-auth-dev.yaml
+kubectl delete -f configs/vault/vault-auth-uat.yaml
+kubectl delete -f configs/vault/vault-auth-kube-system.yaml
+kubectl delete -f configs/vault/vault-auth-monitoring.yaml
+
+# Xóa k8s Secrets do VSO sinh ra
+kubectl delete secret redis-secret -n data
+kubectl delete secret app-dev-secret -n dev
+kubectl delete secret app-uat-secret -n uat
+kubectl delete secret aws-ecr-credentials -n kube-system
+kubectl delete secret elasticsearch-secret -n monitoring
+```
+
+### Kiểm tra VSO đã sync
 
 ```bash
 # VaultStaticSecret status
 kubectl get vaultstaticsecret -n data
 kubectl get vaultstaticsecret -n dev
 kubectl get vaultstaticsecret -n uat
+kubectl get vaultstaticsecret -n monitoring
+kubectl get vaultstaticsecret -n kube-system
+
 
 # k8s Secrets đã được tạo chưa
-kubectl get secret postgres-dev-secret -n data
+kubectl get secret redis-password -n data
 kubectl get secret app-dev-secret -n dev
+kubectl get secret app-uat-secret -n uat
 kubectl get secret aws-ecr-credentials -n kube-system
+kubectl get secret elasticsearch-password -n monitoring
 ```
 
 ---
@@ -423,6 +537,10 @@ kubectl get vaultstaticsecret -A
 # k8s Secrets đã có data
 kubectl get secret postgres-dev-secret -n data -o jsonpath='{.data}' | base64 -d 2>/dev/null || \
   kubectl get secret postgres-dev-secret -n data -o yaml | grep -A5 data:
+
+kubectl get secret aws-ecr-credentials -n kube-system \
+  -o jsonpath='{.data.AWS_KEY}' | base64 -d
+
 ```
 
 ---
