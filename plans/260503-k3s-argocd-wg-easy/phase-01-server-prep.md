@@ -79,8 +79,12 @@ sudo ufw allow 443/tcp
 # WireGuard VPN
 sudo ufw allow 51820/udp
 
-# SSH chỉ từ VPN (sau khi VPN hoạt động mới bật rule này)
+# SSH backup port — mở internet, dùng khi wg-easy sập
+sudo ufw allow 2269/tcp comment "SSH backup internet"
+
+# SSH port 22 — chỉ từ VPN (sau khi VPN hoạt động mới bật)
 # sudo ufw allow from 10.8.0.0/24 to any port 22 proto tcp
+# sudo ufw deny 22/tcp
 
 # Kubernetes API chỉ từ VPN
 sudo ufw allow from 10.8.0.0/24 to any port 6443 proto tcp
@@ -96,12 +100,38 @@ sudo ufw status verbose
 
 ---
 
-> **Lưu ý**: Tạm thời giữ SSH public trong lúc setup.
-> Sau khi VPN hoạt động và test SSH qua VPN thành công, mới khóa SSH về VPN-only:
-> ```bash
-> sudo ufw delete allow 22/tcp
-> sudo ufw allow from 10.8.0.0/24 to any port 22 proto tcp
-> ```
+### 5.3 Cấu hình SSH 2 port (backup khi wg-easy sập)
+
+**Lý do:** wg-easy đôi khi bị sập → mất SSH qua VPN → không vào được server để fix.
+**Giải pháp:** SSH lắng nghe 2 port — port 22 chỉ VPN, port 2269 mở internet.
+
+```bash
+# Thêm port 2269 vào sshd_config (giữ nguyên port 22)
+sudo sed -i '/^#Port 22/a Port 22\nPort 2269' /etc/ssh/sshd_config
+# Hoặc mở file và thêm thủ công:
+# sudo nano /etc/ssh/sshd_config
+# → Thêm 2 dòng:
+#   Port 22
+#   Port 2269
+
+sudo systemctl restart sshd
+
+# Verify 2 port đang listen
+sudo ss -tlnp | grep sshd
+# LISTEN  0.0.0.0:22    ← VPN only (UFW chặn từ internet)
+# LISTEN  0.0.0.0:2269  ← internet backup
+```
+
+Test từ máy local **(mở session mới, KHÔNG đóng session cũ)**:
+```bash
+ssh -p 2269 user@SERVER_PUBLIC_IP
+```
+
+Sau khi VPN hoạt động, khóa port 22 về VPN-only:
+```bash
+sudo ufw allow from 10.8.0.0/24 to any port 22 proto tcp
+sudo ufw deny 22/tcp
+```
 
 ## Bước 6: Trỏ DNS
 

@@ -1,0 +1,18 @@
+# Cho phép pod trong namespace "stg" kết nối đến DB có label env=stg trong namespace "data"
+# Ngăn stg pod truy cập DB của dev/uat (env=dev, env=uat)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-stg-namespace
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      env: stg        # chỉ áp dụng cho postgres-stg, redis-stg
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: stg

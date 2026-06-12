@@ -17,6 +17,8 @@ Dev machine
 
 ## Phân quyền theo namespace
 
+### Role Dev
+
 | Quyền | dev namespace | uat namespace | data namespace | vault namespace |
 |-------|:---:|:---:|:---:|:---:|
 | Xem pods, logs | ✅ | ✅ | ❌ | ❌ |
@@ -26,54 +28,48 @@ Dev machine
 | Exec vào pod | ✅ | ❌ | ❌ | ❌ |
 | Xóa/tạo resource | ❌ | ❌ | ❌ | ❌ |
 
+### Role Tech Lead
+
+Quyền cao hơn dev — thao tác được trên cả `dev`, `stg` và `uat`:
+
+| Quyền | dev namespace | stg namespace | uat namespace | data namespace | vault namespace |
+|-------|:---:|:---:|:---:|:---:|:---:|
+| Xem pods, logs, events | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Xem deployments, services, jobs | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Xem secrets | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Restart deployment (rollout) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Scale deployment/statefulset | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Exec vào pod | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Xóa pod (kẹt CrashLoop/Terminating) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Port-forward | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Tạo/xóa deployment, service | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+> Tech lead **không** có quyền secrets (dùng Vault UI) và **không** tạo/xóa deployment/service — mọi thay đổi deploy đi qua ArgoCD (GitOps).
+
 ---
 
 ## Bước 1: Tạo Role
 
-```bash
-# Role cho namespace dev (xem + restart + exec)
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: dev-role
-  namespace: dev
-rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/log", "services", "configmaps"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["pods/exec"]
-  verbs: ["create"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "replicasets", "statefulsets"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["patch"]   # cho phép rollout restart
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses"]
-  verbs: ["get", "list", "watch"]
-EOF
+Apply **đủ cả 5 file** — `create-dev-account.sh` bind cả 4 role dev/stg/uat/data, thiếu role nào thì binding namespace đó trỏ vào role không tồn tại → dev bị Forbidden:
 
-# Role cho namespace uat (chỉ xem, không exec, không restart)
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: uat-readonly-role
-  namespace: uat
-rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/log", "services", "configmaps"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "replicasets", "statefulsets"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses"]
-  verbs: ["get", "list", "watch"]
-EOF
+```bash
+kubectl apply -f configs/role/dev-role.yaml
+kubectl apply -f configs/role/stg-role.yaml
+kubectl apply -f configs/role/uat-readonly-role.yaml
+kubectl apply -f configs/role/data-portforward-role.yaml
+kubectl apply -f configs/role/techlead-role.yaml
+```
+
+- [dev-role.yaml](../configs/role/dev-role.yaml) — namespace `dev`: xem + exec + restart deployment + port-forward
+- [stg-role.yaml](../configs/role/stg-role.yaml) — namespace `stg`: như dev-role
+- [uat-readonly-role.yaml](../configs/role/uat-readonly-role.yaml) — namespace `uat`: chỉ xem
+- [data-portforward-role.yaml](../configs/role/data-portforward-role.yaml) — namespace `data`: xem pods/services + port-forward (không log, không exec)
+- [techlead-role.yaml](../configs/role/techlead-role.yaml) — 3 Role cùng tên `techlead-role` ở `dev`/`stg`/`uat`: xem + exec + restart + scale + xóa pod
+
+Verify đủ role:
+
+```bash
+kubectl get roles -A | grep -E 'dev-role|stg-role|uat-readonly|data-portforward|techlead'
 ```
 
 ---
@@ -81,62 +77,52 @@ EOF
 ## Bước 2: Tạo ServiceAccount cho từng dev
 
 ```bash
-# Thay DEV_NAME bằng tên thực (vd: nguyen-van-a)
-DEV_NAME="nguyen-van-a"
-
-kubectl create serviceaccount $DEV_NAME -n dev
-
-# Gán role dev namespace
-kubectl create rolebinding ${DEV_NAME}-dev-binding \
-  --role=dev-role \
-  --serviceaccount=dev:$DEV_NAME \
-  -n dev
-
-# Gán role uat namespace (chỉ xem)
-kubectl create rolebinding ${DEV_NAME}-uat-binding \
-  --role=uat-readonly-role \
-  --serviceaccount=dev:$DEV_NAME \
-  -n uat
+chmod +x configs/role/create-dev-account.sh
+./configs/role/create-dev-account.sh nguyen-van-a
 ```
+
+- [create-dev-account.sh](../configs/role/create-dev-account.sh) — tạo ServiceAccount + RoleBinding cho `dev` và `uat`
+
+---
+
+## Bước 2b: Tạo ServiceAccount cho tech lead
+
+```bash
+chmod +x configs/role/create-techlead-account.sh
+./configs/role/create-techlead-account.sh tran-van-b
+```
+
+- [create-techlead-account.sh](../configs/role/create-techlead-account.sh) — tạo ServiceAccount (namespace `dev`) + RoleBinding `techlead-role` cho `dev`/`stg`/`uat` + `data-portforward-role` cho `data`
+
+Tạo kubeconfig dùng chung script với dev (Bước 3): `./configs/role/create-kubeconfig.sh tran-van-b`
 
 ---
 
 ## Bước 3: Tạo kubeconfig cho dev
 
 ```bash
-DEV_NAME="nguyen-van-a"
-VPN_SERVER_IP="10.8.0.1"    # IP VPN của server
-OUTPUT_FILE="${DEV_NAME}-kubeconfig.yaml"
+chmod +x configs/role/create-kubeconfig.sh
 
-# Tạo token (1 năm)
-TOKEN=$(kubectl create token $DEV_NAME -n dev --duration=8760h)
-
-# Tạo file kubeconfig
-cat > $OUTPUT_FILE <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-- name: k3s-cluster
-  cluster:
-    server: https://${VPN_SERVER_IP}:6443
-    insecure-skip-tls-verify: true
-contexts:
-- name: k3s-cluster
-  context:
-    cluster: k3s-cluster
-    user: ${DEV_NAME}
-    namespace: dev
-current-context: k3s-cluster
-users:
-- name: ${DEV_NAME}
-  user:
-    token: ${TOKEN}
-EOF
-
-echo "Kubeconfig saved: $OUTPUT_FILE"
+# Usage: ./create-kubeconfig.sh <dev-name> [vpn-server-ip]
+./configs/role/create-kubeconfig.sh nguyen-van-a 10.8.0.1
 ```
 
-Gửi file `${DEV_NAME}-kubeconfig.yaml` cho dev.
+Gửi file `nguyen-van-a-kubeconfig.yaml` cho dev.
+
+- [create-kubeconfig.sh](../configs/role/create-kubeconfig.sh) — tạo token 1 năm + kubeconfig trỏ về VPN server
+
+Lấy danh sách user (ServiceAccount) và role đã tạo:
+
+```bash
+# Danh sách user (ServiceAccount đặt ở namespace dev)
+kubectl get serviceaccounts -n dev
+
+# Danh sách role trong tất cả namespace
+kubectl get roles -A
+
+# Ai đang được bind role nào (user ↔ role)
+kubectl get rolebindings -A -o wide
+```
 
 ---
 
@@ -180,6 +166,19 @@ kubectl delete rolebinding ${DEV_NAME}-uat-binding -n uat
 
 # Xóa serviceaccount (token cũ sẽ không dùng được nữa)
 kubectl delete serviceaccount $DEV_NAME -n dev
+```
+
+Với tech lead (4 rolebinding):
+
+```bash
+TL_NAME="tran-van-b"
+
+kubectl delete rolebinding ${TL_NAME}-dev-binding -n dev
+kubectl delete rolebinding ${TL_NAME}-stg-binding -n stg
+kubectl delete rolebinding ${TL_NAME}-uat-binding -n uat
+kubectl delete rolebinding ${TL_NAME}-data-binding -n data
+
+kubectl delete serviceaccount $TL_NAME -n dev
 ```
 
 ---
@@ -316,25 +315,88 @@ REDIS_PASSWORD=<password>
 
 ---
 
-## Tiện ích: Script port-forward tự động
+## Tiện ích: Script port-forward nhiều service cùng lúc
 
-Tạo file `redis-forward.sh` (Linux/macOS) hoặc `redis-forward.ps1` (Windows):
+> `kubectl port-forward` là lệnh **blocking** — viết nhiều lệnh nối tiếp nhau thì chỉ lệnh đầu chạy.
+> Phải đẩy từng tunnel vào background (`&` / job) rồi giữ script sống.
+
+Tạo file `dev-forward.sh` (Linux/macOS) hoặc `dev-forward.ps1` (Windows):
 
 **Linux/macOS:**
 
 ```bash
 #!/bin/bash
-echo "Forwarding Redis (namespace dev) → localhost:6379 ..."
-echo "Ctrl+C để dừng"
-kubectl port-forward svc/redis-master 6379:6379 -n dev
+# Forward các service namespace dev về localhost
+# Ctrl+C MỘT lần để dừng TẤT CẢ tunnel
+# Một tunnel chết (pod restart, mất VPN...) → tự tắt toàn bộ, không chạy "nửa sống nửa chết"
+
+trap 'echo "Stopping all tunnels..."; kill 0' SIGINT SIGTERM EXIT
+
+declare -A TUNNELS
+kubectl port-forward svc/redis 6380:6379 -n data & TUNNELS[$!]="redis-master → localhost:6380"
+kubectl port-forward svc/tc-admin-api 4998:4998 -n dev & TUNNELS[$!]="tc-admin-api → localhost:4998"
+kubectl port-forward svc/tc-hrm-api   6000:6000 -n dev & TUNNELS[$!]="tc-hrm-api   → localhost:6000"
+kubectl port-forward svc/tc-wms-api   6001:6001 -n dev & TUNNELS[$!]="tc-wms-api   → localhost:6001"
+
+echo "Tunnels:"
+for pid in "${!TUNNELS[@]}"; do echo "  ${TUNNELS[$pid]}"; done
+echo "Ctrl+C để dừng tất cả"
+
+# Giám sát: tunnel nào chết → báo tên → thoát (trap EXIT sẽ kill các tunnel còn lại)
+while true; do
+  for pid in "${!TUNNELS[@]}"; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "Tunnel DIED: ${TUNNELS[$pid]} — stopping all tunnels"
+      exit 1
+    fi
+  done
+  sleep 2
+done
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-Write-Host "Forwarding Redis (namespace dev) -> localhost:6379 ..."
-Write-Host "Ctrl+C de dung"
-kubectl port-forward svc/redis-master 6379:6379 -n dev
+# Forward cac service namespace dev ve localhost
+# Dong cua so / Ctrl+C roi chay lenh cleanup de dung tat ca
+
+$forwards = @(
+    "port-forward svc/redis 6380:6379 -n data",
+    "port-forward svc/tc-admin-api 4998:4998 -n dev",
+    "port-forward svc/tc-hrm-api 6000:6000 -n dev",
+    "port-forward svc/tc-wms-api 6001:6001 -n dev"
+)
+
+$jobs = foreach ($f in $forwards) {
+    Start-Job -ScriptBlock { param($cmdArgs) kubectl $cmdArgs.Split(" ") } -ArgumentList $f
+}
+
+Write-Host "Tunnels:"
+Write-Host "  Redis        -> localhost:6380"
+Write-Host "  tc-admin-api -> localhost:4998"
+Write-Host "  tc-hrm-api   -> localhost:6000"
+Write-Host "  tc-wms-api   -> localhost:6001"
+Write-Host "Ctrl+C de thoat. Mot tunnel chet -> tu dong tat tat ca"
+
+try {
+    # -Any: thoat ngay khi job DAU TIEN ket thuc (tunnel chet) thay vi cho het ca 4
+    $dead = Wait-Job -Job $jobs -Any
+    Write-Host "Tunnel DIED (job $($dead.Id)) - stopping all tunnels"
+    Receive-Job $dead   # in error cua tunnel chet de biet ly do
+} finally {
+    $jobs | Stop-Job
+    $jobs | Remove-Job
+}
+```
+
+**Xử lý sự cố:**
+
+```bash
+# Port local đang bận (address already in use) — tìm tunnel cũ còn sống và diệt
+pkill -f "kubectl port-forward"          # Linux/macOS
+Get-Job | Stop-Job; Get-Job | Remove-Job # Windows (job của session hiện tại)
+
+# Tunnel đứt khi pod restart — không tự reconnect, chạy lại script
 ```
 
 ---

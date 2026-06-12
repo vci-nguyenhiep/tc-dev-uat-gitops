@@ -1,0 +1,20 @@
+## ArgoCD Helm values
+## Cài đặt: helm install argocd argo/argo-cd -n argocd -f configs/argocd/argocd-values.yaml
+
+configs:
+  params:
+    server.insecure: true   # Traefik xử lý TLS, ArgoCD dùng HTTP nội bộ
+
+repoServer:
+  # Fix: liveness probe mặc định dùng /healthz?full=true với timeoutSeconds=1
+  # full=true kiểm tra kết nối tất cả Git repos — tốn thời gian khi có nhiều apps
+  # → timeout liên tục → Kubernetes kill/restart pod → connection refused
+  # Giải pháp: liveness dùng /healthz (lightweight), readiness giữ full=true
+  livenessProbe:
+    httpGet:
+      path: /healthz        # bỏ ?full=true — chỉ kiểm tra process còn sống
+      port: metrics
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5

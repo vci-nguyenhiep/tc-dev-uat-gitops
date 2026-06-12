@@ -1,0 +1,118 @@
+# Role cho Tech Lead — quyền cao hơn dev:
+# - exec + restart + scale + xóa pod ở CẢ dev, stg, uat (dev chỉ được ở dev/stg, uat readonly)
+# - KHÔNG có quyền secrets — secrets quản lý qua Vault
+# - KHÔNG có quyền tạo/xóa deployment/service — deploy qua ArgoCD (GitOps)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: techlead-role
+  namespace: dev
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "services", "configmaps", "events", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+# Xóa pod kẹt (CrashLoopBackOff, stuck Terminating) để k8s tự tạo lại
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+# Restart (rollout restart) + scale deployment/statefulset
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/scale", "statefulsets/scale"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+# Quyền port-forward - đây là phần quan trọng
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create", "get"]
+# Port-forward qua service (kubectl port-forward svc/xxx)
+- apiGroups: [""]
+  resources: ["services/portforward"]
+  verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: techlead-role
+  namespace: stg
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "services", "configmaps", "events", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/scale", "statefulsets/scale"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create", "get"]
+- apiGroups: [""]
+  resources: ["services/portforward"]
+  verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: techlead-role
+  namespace: uat
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "services", "configmaps", "events", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/scale", "statefulsets/scale"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create", "get"]
+- apiGroups: [""]
+  resources: ["services/portforward"]
+  verbs: ["create", "get"]

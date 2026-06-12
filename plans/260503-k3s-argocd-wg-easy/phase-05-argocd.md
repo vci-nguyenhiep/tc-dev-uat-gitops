@@ -1,9 +1,37 @@
 # Phase 05 — ArgoCD + GitHub GitOps
 
+## Lỗi đã gặp
+
+### Lỗi 1 — repo-server crash loop
+
+**Triệu chứng:** ArgoCD báo `Unable to sync: error resolving repo revision: connection refused` ở port 8081.
+
+**Nguyên nhân:** ArgoCD mặc định cấu hình liveness probe của `argocd-repo-server` như sau:
+```
+path: /healthz?full=true
+timeoutSeconds: 1
+failureThreshold: 3
+```
+Endpoint `?full=true` kiểm tra kết nối tới **tất cả Git repos** mỗi lần check — khi có nhiều apps (20+) đang sync đồng thời, check này tốn > 1 giây. Kubernetes coi là fail, sau 3 lần liên tiếp → kill pod → restart → trong lúc pod khởi động lại thì các app gọi tới port 8081 bị `connection refused`.
+
+**Fix:** Dùng `/healthz` (không `full=true`) cho liveness probe. Liveness chỉ cần biết process còn sống, không cần check repo connectivity. Readiness probe giữ nguyên `full=true`.
+
+Config fix đã được đưa vào `configs/argocd/argocd-values.yaml`.
+
+### Lỗi 2 — "revision main must be resolved" khi refresh
+
+**Triệu chứng:** ArgoCD UI hiện `Unable to load data: revision main must be resolved` ngắt quãng khi bấm Refresh.
+
+**Nguyên nhân:** ISP DNS đôi khi trả về IP `125.235.4.59` cho `github.com` — IP này bị `connection refused` từ trong cluster. Khi git fetch fail → repo-server không resolve được revision → lỗi lan sang toàn bộ app đang dùng repo đó.
+
+**Fix:** Đã xử lý ở **Phase 03 - Bước 3b** — CoreDNS override `github.com` dùng Google/Cloudflare DNS. Phải chạy bước đó **trước khi** cài ArgoCD.
+
+---
+
 ## Bước 1: Cài ArgoCD
 
 ```bash
-cài đặt Helm (nếu chưa có):
+# Cài đặt Helm (nếu chưa có):
 curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 ```
 
@@ -11,29 +39,32 @@ curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bas
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 
+# Dùng values file — bao gồm fix liveness probe cho repo-server
 helm install argocd argo/argo-cd \
   --namespace argocd \
-  --set configs.params."server\.insecure"=true   # Traefik xử lý TLS, ArgoCD dùng HTTP nội bộ
+  --create-namespace \
+  -f configs/argocd/argocd-values.yaml
 ```
 
 Kiểm tra:
 
 ```bash
-Nếu xảy ra lỗi permission denied khi Helm tạo service account, có thể do KUBECONFIG chưa set đúng hoặc không có quyền admin trên cluster.
+# Nếu xảy ra lỗi permission denied khi Helm tạo service account,
+# có thể do KUBECONFIG chưa set đúng hoặc không có quyền admin trên cluster.
 source ~/.bashrc
 echo $KUBECONFIG
 
-Nếu KUBECONFIG vẫn rỗng thì set trực tiếp trong session hiện tại:
-
+# Nếu KUBECONFIG vẫn rỗng thì set trực tiếp:
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 helm install argocd argo/argo-cd \
   --namespace argocd \
-  --set server.insecure=true
+  --create-namespace \
+  -f configs/argocd/argocd-values.yaml
 
-rồi kiểm tra lại:
+# Kiểm tra pods — tất cả phải Running, RESTARTS phải thấp
 kubectl get pods -n argocd
 # argocd-server-xxx                Running
-# argocd-repo-server-xxx           Running
+# argocd-repo-server-xxx           Running   ← nếu RESTARTS tăng liên tục = lỗi probe
 # argocd-application-controller-xxx Running
 # argocd-dex-server-xxx            Running
 # argocd-redis-xxx                 Running
@@ -195,32 +226,57 @@ ArgoCD sync vào k3s cluster
 
 Đây là cách mặc định, không cần setup thêm gì.
 
-### Cách 2: Webhook (ngay lập tức) — Cần cấu hình GitHub
+### Cách 2: Webhook (ngay lập tức) — Cần expose endpoint + cấu hình GitHub
 
 Webhook giúp ArgoCD nhận thông báo ngay khi có push, không cần chờ 3 phút.
 
+> **Phân biệt chiều traffic — đừng nhầm:**
+> - ArgoCD **pull** repo từ GitHub = **outbound**, KHÔNG cần publish gì (đã chạy qua polling).
+> - Webhook = GitHub **gọi vào** ArgoCD = **inbound**. GitHub server nằm trên internet
+>   công cộng → phải hở endpoint `/api/webhook` ra net thì GitHub mới POST vào được.
+>
+> IngressRoute chính (`argocd-ingress.yaml`) đang gắn `vpn-only` → GitHub không vào được.
+> **Không bỏ `vpn-only`** (sẽ phơi cả UI admin ra net). Thay vào đó hở RIÊNG path webhook.
+
+**Điều kiện hạ tầng (kiểm tra trước):**
+- `tc-argocd.vcijsc.com` resolve **public** ra IP public của server.
+- Firewall mở **443 inbound từ internet** (hiện có thể chỉ mở cho VPN).
+- Cert `argocd-tls` hợp lệ (đã có từ phase 04).
+
 **Bước cấu hình webhook:**
 
-1. Lấy secret token:
+1. Apply IngressRoute webhook-only (hở đúng path `/api/webhook`, không gắn `vpn-only`):
 ```bash
-kubectl get secret argocd-secret -n argocd \
-  -o jsonpath="{.data.webhook\.github\.secret}" | base64 -d
+kubectl apply -f configs/argocd/argocd-webhook-ingress.yaml
 ```
 
-Nếu chưa có, set secret:
+2. Set secret token (HMAC — đây là lớp bảo mật chính của endpoint này):
 ```bash
+# Tạo secret ngẫu nhiên mạnh
+WEBHOOK_SECRET=$(openssl rand -hex 32)
+
 kubectl patch secret argocd-secret -n argocd \
-  -p '{"stringData": {"webhook.github.secret": "your-webhook-secret"}}'
+  -p "{\"stringData\": {\"webhook.github.secret\": \"$WEBHOOK_SECRET\"}}"
+
+echo "Secret để dán vào GitHub: $WEBHOOK_SECRET"
 ```
 
-2. Trên GitHub repo → Settings → Webhooks → Add webhook:
-   - Payload URL: `https://argocd.company.com/api/webhook`
+3. Trên GitHub repo → Settings → Webhooks → Add webhook:
+   - Payload URL: `https://tc-argocd.vcijsc.com/api/webhook`
    - Content type: `application/json`
-   - Secret: (secret từ bước trên)
+   - Secret: (secret từ bước 2)
    - Events: `Just the push event`
    - Click `Add webhook`
 
-Sau khi setup webhook, mỗi khi push lên GitHub → ArgoCD sync ngay lập tức (< 5 giây).
+4. Verify: sau khi Add, GitHub gửi 1 ping. Vào tab **Recent Deliveries** của webhook
+   → phải thấy response `200`. Nếu `403`/timeout → kiểm tra firewall 443 + public DNS.
+
+Sau khi setup, mỗi khi push lên GitHub → ArgoCD sync ngay lập tức (< 5 giây).
+
+> **Bảo mật:** Endpoint chỉ trigger refresh repo, không lộ data. ArgoCD verify
+> `X-Hub-Signature` bằng secret → request không có chữ ký đúng bị reject. KHÔNG dùng
+> IP allowlist theo IP GitHub được vì klipper-lb MASQUERADE source IP (xem comment
+> trong `configs/argocd/argocd-webhook-ingress.yaml`).
 
 ## Bước 9: Tạo ArgoCD Application đầu tiên
 

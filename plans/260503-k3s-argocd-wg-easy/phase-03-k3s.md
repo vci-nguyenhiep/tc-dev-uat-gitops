@@ -67,6 +67,38 @@ kubectl get namespaces --show-labels
 > Label `kubernetes.io/metadata.name` tự được thêm bởi Kubernetes 1.21+,
 > nhưng khai báo rõ trong YAML giúp dễ đọc và tránh nhầm lẫn.
 
+## [SERVER] Bước 3b: Fix CoreDNS — dùng DNS tin cậy cho github.com + amazonaws.com
+
+**Lỗi đã gặp:**
+- ArgoCD báo `revision main must be resolved` ngắt quãng khi refresh.
+- App trong cluster gọi AWS SQS báo `Connection refused (sqs.ap-southeast-1.amazonaws.com:443)` ngắt quãng — chạy local thì bình thường.
+
+**Nguyên nhân:** CoreDNS mặc định dùng `forward . /etc/resolv.conf` (DNS của ISP). ISP DNS đôi khi trả về IP xấu (vd: `github.com` → `125.235.4.59` bị `connection refused` từ cluster), dẫn đến git fetch fail → ArgoCD không resolve được revision. Cùng bệnh với mọi domain ngoài: `*.amazonaws.com` (SQS, RDS, S3, SES...) cũng dính → app lỗi connection refused dù DNS lúc test có thể trả đúng (lỗi ngắt quãng). Local không lỗi vì máy local dùng DNS khác, không đi qua CoreDNS của cluster.
+
+**Fix:** Override DNS cho `github.com` + `amazonaws.com` dùng Google (`8.8.8.8`) + Cloudflare (`1.1.1.1`):
+
+```bash
+kubectl apply -f configs/argocd/coredns-custom.yaml
+kubectl rollout restart deployment/coredns -n kube-system
+kubectl rollout status deployment/coredns -n kube-system
+```
+
+Verify (chạy nhiều lần — phải luôn ra IP ổn định, không ra IP ISP):
+```bash
+# github.com — phải luôn ra IP Azure 20.205.243.166
+kubectl run dnstest -n kube-system --image=busybox --restart=Never --rm -- \
+  sh -c "nslookup github.com; nslookup github.com; nslookup github.com"
+
+# amazonaws.com — phải luôn ra IP dải AWS (13.x, 47.128.x, 52.x...)
+kubectl run dnstest2 -n kube-system --image=busybox --restart=Never --rm -- \
+  sh -c "nslookup sqs.ap-southeast-1.amazonaws.com; nslookup sqs.ap-southeast-1.amazonaws.com"
+```
+
+> **Khi nào cần thêm domain mới vào file này?** Triệu chứng nhận diện: app/service trong cluster
+> gọi domain ngoài bị `connection refused` **ngắt quãng** (lúc được lúc không), trong khi
+> chạy từ máy local thì bình thường → thêm block tương tự cho domain đó vào
+> `configs/argocd/coredns-custom.yaml`, apply + rollout restart coredns.
+
 ---
 
 ## [LOCAL] Bước 4: Cài kubectl trên máy local

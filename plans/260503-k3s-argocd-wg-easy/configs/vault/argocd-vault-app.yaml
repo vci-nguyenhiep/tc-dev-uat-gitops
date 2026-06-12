@@ -35,6 +35,11 @@ spec:
         ui:
           enabled: true
           serviceType: ClusterIP
+        injector:
+          # Tắt podAntiAffinity mặc định của chart — cluster single-node:
+          # RollingUpdate cần pod mới chạy song song pod cũ trên cùng node,
+          # anti-affinity REQUIRED chặn schedule → rollout kẹt vĩnh viễn (đã gặp khi chart nâng 1.7.2→1.7.4)
+          affinity: ""
   destination:
     server: https://kubernetes.default.svc
     namespace: vault
@@ -44,3 +49,11 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  # Injector runtime tự ghi caBundle (cert) vào webhook config — chart để rỗng
+  # → false-diff làm app OutOfSync vĩnh viễn. Bỏ qua đúng field này.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: vault-agent-injector-cfg
+      jsonPointers:
+        - /webhooks/0/clientConfig/caBundle

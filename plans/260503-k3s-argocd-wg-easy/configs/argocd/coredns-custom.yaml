@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  # Fix: ISP DNS đôi khi trả về IP không ổn định cho github.com
+  # (vd: 125.235.4.59 bị connection refused từ cluster → ArgoCD báo "revision main must be resolved")
+  # Override: github.com dùng Google 8.8.8.8 + Cloudflare 1.1.1.1 thay vì ISP DNS
+  github.server: |
+    github.com:53 {
+        errors
+        cache 300
+        forward . 8.8.8.8 1.1.1.1
+    }
+  # Fix: cùng bệnh với github.com — app trong cluster gọi AWS (SQS, RDS, S3...)
+  # thỉnh thoảng bị "connection refused" do ISP DNS trả IP rác cho *.amazonaws.com
+  aws.server: |
+    amazonaws.com:53 {
+        errors
+        cache 300
+        forward . 8.8.8.8 1.1.1.1
+    }
+  # Fix GỐC RỄ của các lỗi 125.235.4.59: node (VPS nền OpenStack) có search domain
+  # "openstacklocal" lan vào pod. Với ndots:5, pod hỏi "github.com.openstacklocal"
+  # TRƯỚC "github.com" → query không khớp block custom phía trên → forward về ISP DNS
+  # → ISP wildcard-trả IP rác cho *.openstacklocal. Trả NXDOMAIN ngay tại CoreDNS
+  # để resolver bỏ qua search domain này và hỏi đúng tên thật.
+  openstacklocal.server: |
+    openstacklocal:53 {
+        errors
+        template IN ANY openstacklocal {
+            rcode NXDOMAIN
+        }
+    }

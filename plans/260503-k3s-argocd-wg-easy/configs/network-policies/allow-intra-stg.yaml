@@ -1,0 +1,15 @@
+# Cho phép tất cả pods trong namespace stg giao tiếp với nhau
+# Cần thiết vì default-deny-ingress chặn cả traffic nội bộ
+# Ví dụ: admin gọi http://wms, hrm gọi http://ims, v.v.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: stg
+spec:
+  podSelector: {}       # áp dụng cho tất cả pods trong stg
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}  # chỉ cho phép từ pods cùng namespace stg
